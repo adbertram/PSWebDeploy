@@ -1,5 +1,5 @@
 # PSWebDeploy
-PSWebDeploy is a PowerSHell module that wraps PowerShell around msdeploy.exe. This greatly eases figuring out the long syntax required for msdeploy.exe.
+PSWebDeploy is a PowerShell module that wraps PowerShell around (Web Deploy) msdeploy.exe. This greatly eases figuring out the long syntax required for msdeploy.exe.
 
 ## Sync-Website
 
