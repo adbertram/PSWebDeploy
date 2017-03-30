@@ -36,7 +36,7 @@ function NewMsDeployCliArgumentString
 
 		[Parameter(Mandatory)]
 		[ValidateNotNullOrEmpty()]
-		$Credential,
+		[pscredential]$Credential,
 
 		[Parameter()]
 		[ValidateNotNullOrEmpty()]
@@ -179,7 +179,7 @@ function Sync-Website {
 
 		[Parameter()]
 		[ValidateNotNullOrEmpty()]
-		$Credential
+		[pscredential]$Credential
 	)
 	begin {
 		$ErrorActionPreference = 'Stop'

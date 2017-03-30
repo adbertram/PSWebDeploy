@@ -240,9 +240,9 @@ InModuleScope $ThisModuleName {
             )
             
             $command = Get-Command -Name $commandName
-            $commandParamNames = [array]($command.Parameters.Keys | where {$_ -notin $nativeParamNames})
+            $commandParamNames = [array]($command.Parameters.Keys | Where-Object {$_ -notin $nativeParamNames})
             $help = Get-Help -Name $commandName
-            $helpParamNames = (Get-Content function:\$commandName) -split "`n" | where {$_ -cmatch '\.PARAMETER[\s+|\n]'} | foreach {$_.Trim() -replace '\.PARAMETER '}
+            $helpParamNames = (Get-Content function:\$commandName) -split "`n" | Where-Object {$_ -cmatch '\.PARAMETER[\s+|\n]'} | foreach {$_.Trim() -replace '\.PARAMETER '}
             
             it 'has a SYNOPSIS defined' {
                 $help.synopsis | should not match $commandName
@@ -253,7 +253,7 @@ InModuleScope $ThisModuleName {
             }
             
             it 'all help parameters have a description' {
-                $help.Parameters | where { ('Description' -in $_.Parameter.PSObject.Properties.Name) -and (-not $_.Parameter.Description) } | should be $null
+                $help.Parameters | Where-Object { ('Description' -in $_.Parameter.PSObject.Properties.Name) -and (-not $_.Parameter.Description) } | should be $null
             }
             
             it 'there are no help parameters that refer to non-existent command paramaters' {
@@ -438,9 +438,9 @@ InModuleScope $ThisModuleName {
             )
             
             $command = Get-Command -Name $commandName
-            $commandParamNames = [array]($command.Parameters.Keys | where {$_ -notin $nativeParamNames})
+            $commandParamNames = [array]($command.Parameters.Keys | Where-Object {$_ -notin $nativeParamNames})
             $help = Get-Help -Name $commandName
-            $helpParamNames = (Get-Content function:\$commandName) -split "`n" | where {$_ -cmatch '\.PARAMETER[\s+|\n]'} | foreach {$_.Trim() -replace '\.PARAMETER '}
+            $helpParamNames = (Get-Content function:\$commandName) -split "`n" | Where-Object {$_ -cmatch '\.PARAMETER[\s+|\n]'} | foreach {$_.Trim() -replace '\.PARAMETER '}
             
             it 'has a SYNOPSIS defined' {
                 $help.synopsis | should not match $commandName
@@ -451,7 +451,7 @@ InModuleScope $ThisModuleName {
             }
             
             it 'all help parameters have a description' {
-                $help.Parameters | where { ('Description' -in $_.Parameter.PSObject.Properties.Name) -and (-not $_.Parameter.Description) } | should be $null
+                $help.Parameters | Where-Object { ('Description' -in $_.Parameter.PSObject.Properties.Name) -and (-not $_.Parameter.Description) } | should be $null
             }
             
             it 'there are no help parameters that refer to non-existent command paramaters' {
