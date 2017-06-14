@@ -1,14 +1,31 @@
-#region import modules
-$ThisModule = "$($MyInvocation.MyCommand.Path -replace '\.Tests\.ps1$', '').psm1"
-$ThisModuleName = (($ThisModule | Split-Path -Leaf) -replace '\.psm1')
+,#region import modules
+$ThisModule = "$($MyInvocation.MyCommand.Path -replace '\.Tests\.ps1$', '').psd1"
+$ThisModuleName = (($ThisModule | Split-Path -Leaf) -replace '\.psd1')
 Get-Module -Name $ThisModuleName -All | Remove-Module -Force
 
 Import-Module -Name $ThisModule -Force -ErrorAction Stop
-
-## If a module is in $Env:PSModulePath and $ThisModule is not, you will have two modules loaded when importing and 
-## InModuleScope does not like that. 0.0 will always be the one imported directly from PSM1.
-@(Get-Module -Name $ThisModuleName).where({ $_.version -ne '0.0' }) | Remove-Module
 #endregion
+
+describe 'Module-level tests' {
+	
+	it 'should validate the module manifest' {
+	
+		{ Test-ModuleManifest -Path $ThisModule -ErrorAction Stop } | should not throw
+	}
+
+	it 'should pass all error-level script analyzer rules' {
+
+		$excludedRules = @(
+			'PSUseShouldProcessForStateChangingFunctions',
+			'PSUseToExportFieldsInManifest',
+			'PSAvoidInvokingEmptyMembers',
+			'PSUsePSCredentialType',
+			'PSAvoidUsingPlainTextForPassword'
+		)
+
+		Invoke-ScriptAnalyzer -Path $PSScriptRoot -ExcludeRule $excludedRules -Severity Error | should benullorempty
+	}
+}
 
 InModuleScope $ThisModuleName {
 
@@ -218,71 +235,6 @@ InModuleScope $ThisModuleName {
         }
     }
 
-    describe 'Sync-Website - Function' {
-        $commandName = 'Sync-Website'
-
-        context 'Help' {
-            
-            $nativeParamNames = @(
-                'Verbose'
-                'Debug'
-                'ErrorAction'
-                'WarningAction'
-                'InformationAction'
-                'ErrorVariable'
-                'WarningVariable'
-                'InformationVariable'
-                'OutVariable'
-                'OutBuffer'
-                'PipelineVariable'
-                'Confirm'
-                'WhatIf'
-            )
-            
-            $command = Get-Command -Name $commandName
-            $commandParamNames = [array]($command.Parameters.Keys | Where-Object {$_ -notin $nativeParamNames})
-            $help = Get-Help -Name $commandName
-            $helpParamNames = (Get-Content function:\$commandName) -split "`n" | Where-Object {$_ -cmatch '\.PARAMETER[\s+|\n]'} | foreach {$_.Trim() -replace '\.PARAMETER '}
-            
-            it 'has a SYNOPSIS defined' {
-                $help.synopsis | should not match $commandName
-            }
-            
-            it 'has at least one example' {
-                $help.examples | should not benullorempty
-            }
-            
-            it 'all help parameters have a description' {
-                $help.Parameters | Where-Object { ('Description' -in $_.Parameter.PSObject.Properties.Name) -and (-not $_.Parameter.Description) } | should be $null
-            }
-            
-            it 'there are no help parameters that refer to non-existent command paramaters' {
-                if ($commandParamNames) {
-                @(Compare-Object -ReferenceObject $helpParamNames -DifferenceObject $commandParamNames).where({
-                    $_.SideIndicator -eq '<='
-                }) | should benullorempty
-                }
-            }
-            
-            it 'all command parameters have a help parameter defined' {
-                if ($commandParamNames) {
-                @(Compare-Object -ReferenceObject $helpParamNames -DifferenceObject $commandParamNames).where({
-                    $_.SideIndicator -eq '=>'
-                }) | should benullorempty
-                }
-            }
-        }
-
-        #region Mocks
-        mock 'Invoke-MSDeploy'
-
-        mock 'NewMsDeployCliArgumentString' {
-            'argstringhere'
-        }
-        #endregion
-
-    }
-
     describe 'Sync-Website - SourcePath' {
         $commandName = 'Sync-Website'
 
@@ -336,7 +288,9 @@ InModuleScope $ThisModuleName {
 
     describe 'Sync-Website' {
 
-        mock 'NewMsDeployCliArgumentString'
+        mock 'NewMsDeployCliArgumentString' {
+            'string'
+        }
         
         $mockCred = New-MockObject -Type 'System.Management.Automation.PSCredential'
         $mockCred = $mockCred | Add-Member -MemberType NoteProperty -Name UserName -Value 'username' -PassThru -Force
