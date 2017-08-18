@@ -25,7 +25,7 @@ function NewMsDeployCliArgumentString
 		[Alias('SourcePackage')]
 		[string]$SourceContent,
 
-		[Parameter(Mandatory)]
+		[Parameter()]
 		[ValidateNotNullOrEmpty()]
 		[Alias('TargetPath')]
 		[string]$TargetContent,
@@ -189,7 +189,7 @@ function Sync-Website {
 		{
 			$cliArgStringParams = @{
 				Verb = 'sync'
-				TargetPath = ($TargetPath -replace '/','\')
+				TargetContent = ($TargetPath -replace '/','\')
 				ComputerName = $ComputerName
 				Credential = $Credential
 			}
@@ -217,7 +217,7 @@ function Sync-Website {
 #region function Get-WebSiteFile
 function Get-WebSiteFile
 {
-	[OutputType([string])]
+	[OutputType('string')]
 	[CmdletBinding()]
 	param
 	(

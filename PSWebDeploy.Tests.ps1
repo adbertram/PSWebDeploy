@@ -23,7 +23,7 @@ describe 'Module-level tests' {
 			'PSAvoidUsingPlainTextForPassword'
 		)
 
-		Invoke-ScriptAnalyzer -Path $PSScriptRoot -ExcludeRule $excludedRules -Severity Error | should benullorempty
+		Invoke-ScriptAnalyzer -Path $PSScriptRoot -ExcludeRule $excludedRules -Severity Error | Select-Object -ExpandProperty RuleName | should benullorempty
 	}
 }
 
@@ -128,7 +128,7 @@ InModuleScope $ThisModuleName {
 
             mock 'Test-Path' {
                 $true
-            } -ParameterFilter { $PathType -eq 'Leaf' }
+            } -ParameterFilter { $PSBoundParameters.PathType -eq 'Leaf' }
 
             it 'when EnableRule is used, it returns the expected string: <TestName>' -TestCases $testCases.SourcePackage.EnableRule {
                 param($Verb,$SourceContent,$SourcePath,$SourcePackage,$TargetContent,$ComputerName,$TargetPath,$EnableRule,$Credential,$AuthType)
@@ -157,7 +157,7 @@ InModuleScope $ThisModuleName {
 
             mock 'Test-Path' {
                 $true
-            } -ParameterFilter { $PathType -eq 'Container' }
+            } -ParameterFilter { $PSBoundParameters.PathType -eq 'Container' }
 
             it 'when EnableRule is used, it returns the expected string: <TestName>' -TestCases $testCases.SourcePath.EnableRule {
                 param($Verb,$SourceContent,$SourcePath,$SourcePackage,$TargetContent,$ComputerName,$TargetPath,$EnableRule,$Credential,$AuthType)
@@ -212,7 +212,7 @@ InModuleScope $ThisModuleName {
                     Times = 1
                     Exactly = $true
                     Scope = 'It'
-                    ParameterFilter = {$ArgumentList -eq $Arguments }
+                    ParameterFilter = {$PSBoundParameters.ArgumentList -eq $Arguments }
                 }
                 Assert-MockCalled @assMParams
             }
@@ -235,62 +235,13 @@ InModuleScope $ThisModuleName {
         }
     }
 
-    describe 'Sync-Website - SourcePath' {
-        $commandName = 'Sync-Website'
-
-        #region Mocks
-        mock 'Invoke-MSDeploy'
-
-        mock 'NewMsDeployCliArgumentString' {
-            'argstringhere'
-        }
-        #endregion
-
-        $parameterSets = @(
-            @{
-                SourcePath = 'c:\sourcepath'
-                TargetPath = '\wwwroot'
-                ComputerName = 'https://webapphere.scm.azurewebsites.net:443/msdeploy.axd?site=webapphere'
-                Credential = (New-MockObject -Type 'System.Management.Automation.PSCredential')
-                TestName = 'Azure web app'
-            }
-            @{
-                SourcePath = 'c:\sourcepath'
-                TargetPath = '/wwwroot'
-                ComputerName = 'https://webapphere.scm.azurewebsites.net:443/msdeploy.axd?site=webapphere'
-                Credential = (New-MockObject -Type 'System.Management.Automation.PSCredential')
-                TestName = 'Forward slashes in TargetPath'
-            }
-            @{
-                SourcePath = 'c:\sourcepath'
-                TargetPath = '/wwwroot'
-                ComputerName = 'https://webapphere.scm.azurewebsites.net:443/msdeploy.axd?site=webapphere'
-                Credential = (New-MockObject -Type 'System.Management.Automation.PSCredential')
-                DoNotDelete = $true
-                TestName = 'does not remove TargetPath contents'
-            }
-            @{
-                SourcePath = 'MySite'
-                TargetPath = '/wwwroot'
-                ComputerName = 'https://webapphere.scm.azurewebsites.net:443/msdeploy.axd?site=webapphere'
-                Credential = (New-MockObject -Type 'System.Management.Automation.PSCredential')
-                TestName = 'does not remove TargetPath contents'
-            }
-        )
-    
-        $testCases = @{
-            All = $parameterSets
-            SiteSourcePath = $parameterSets.where({$_.SourcePath -notmatch ':'})
-        }
-
-
-    }
-
     describe 'Sync-Website' {
 
         mock 'NewMsDeployCliArgumentString' {
             'string'
         }
+
+        mock 'Invoke-MsDeploy'
         
         $mockCred = New-MockObject -Type 'System.Management.Automation.PSCredential'
         $mockCred = $mockCred | Add-Member -MemberType NoteProperty -Name UserName -Value 'username' -PassThru -Force
@@ -345,7 +296,8 @@ InModuleScope $ThisModuleName {
                     Times = 1
                     Exactly = $true
                     Scope = 'It'
-                    ParameterFilter = { $TargetPath -eq '\wwwroot' }
+                    ParameterFilter = { 
+                        $PSBoundParameters.TargetContent -eq '\wwwroot' }
                 }
                 Assert-MockCalled @assMParams
     
@@ -370,70 +322,29 @@ InModuleScope $ThisModuleName {
     }
 
     describe 'Get-WebsiteFile - Function' {
+
+        $cred = New-MockObject -Type 'System.Management.Automation.PSCredential'
+        $cred | Add-Member -MemberType ScriptMethod -Name 'GetNetworkCredential' -Force -Value { [pscustomobject]@{Password = 'pwhere'} }
+        $cred | Add-Member -MemberType NoteProperty -Name 'UserName' -Force -Value 'user'
     
         $commandName = 'Get-WebsiteFile'
-    
-        context 'Help' {
-            
-            $nativeParamNames = @(
-                'Verbose'
-                'Debug'
-                'ErrorAction'
-                'WarningAction'
-                'InformationAction'
-                'ErrorVariable'
-                'WarningVariable'
-                'InformationVariable'
-                'OutVariable'
-                'OutBuffer'
-                'PipelineVariable'
-                'Confirm'
-                'WhatIf'
-            )
-            
-            $command = Get-Command -Name $commandName
-            $commandParamNames = [array]($command.Parameters.Keys | Where-Object {$_ -notin $nativeParamNames})
-            $help = Get-Help -Name $commandName
-            $helpParamNames = (Get-Content function:\$commandName) -split "`n" | Where-Object {$_ -cmatch '\.PARAMETER[\s+|\n]'} | foreach {$_.Trim() -replace '\.PARAMETER '}
-            
-            it 'has a SYNOPSIS defined' {
-                $help.synopsis | should not match $commandName
-            }
-            
-            it 'has at least one example' {
-                $help.examples | should not benullorempty
-            }
-            
-            it 'all help parameters have a description' {
-                $help.Parameters | Where-Object { ('Description' -in $_.Parameter.PSObject.Properties.Name) -and (-not $_.Parameter.Description) } | should be $null
-            }
-            
-            it 'there are no help parameters that refer to non-existent command paramaters' {
-                if ($commandParamNames) {
-                @(Compare-Object -ReferenceObject $helpParamNames -DifferenceObject $commandParamNames).where({
-                    $_.SideIndicator -eq '<='
-                }) | should benullorempty
-                }
-            }
-            
-            it 'all command parameters have a help parameter defined' {
-                if ($commandParamNames) {
-                @(Compare-Object -ReferenceObject $helpParamNames -DifferenceObject $commandParamNames).where({
-                    $_.SideIndicator -eq '=>'
-                }) | should benullorempty
-                }
-            }
-        }
+        $command = Get-Command -Name $commandName
     
         #region Mocks
-        mock 'Invoke-MSDeploy'
+        mock 'Invoke-MSDeploy' {
+            'string'
+        }
 
         mock 'NewMsDeployCliArgumentString' {
             'argstringhere'
         }
         #endregion
 
-        $result = Get-WebsiteFile -ComputerName 'FOO' -Credential (New-MockObject -Type 'System.Management.Automation.PSCredential')
+        $params = @{
+            ComputerName = 'Foo'
+            Credential = $cred
+        }
+        $result = Get-WebsiteFile @params
 
         it 'returns the same object type as defined in OutputType: <TestName>' {
 
