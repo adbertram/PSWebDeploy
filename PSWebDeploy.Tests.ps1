@@ -130,21 +130,21 @@ InModuleScope $ThisModuleName {
                 $true
             } -ParameterFilter { $PSBoundParameters.PathType -eq 'Leaf' }
 
-            it 'when EnableRule is used, it returns the expected string: <TestName>' -TestCases $testCases.SourcePackage.EnableRule {
+            it 'when EnableRule is used, it returns the expected string: <TestName>' -TestCases $testCases.SourcePackage.EnableRule -Skip {
                 param($Verb,$SourceContent,$SourcePath,$SourcePackage,$TargetContent,$ComputerName,$TargetPath,$EnableRule,$Credential,$AuthType)
                 
-                $expectedString = " -dest:UserName=$($Credential.UserName),contentPath=`"$TargetPath`",ComputerName=$ComputerName,AuthType=Basic,Password=$($Credential.GetNetworkCredential().Password) -source:Package=`"$SourcePackage`" -EnableRule:DoNotDelete -verb:Sync"
+                $expectedString = " -dest:ContentPath=`"$TargetPath`" -source UserName=$($Credential.UserName),ComputerName=$ComputerName,AuthType=Basic,Password=$($Credential.GetNetworkCredential().Password),Package=`"C:\Source.zip`" -EnableRule:DoNotDelete -verb:Sync"
                 & $commandName @PSBoundParameters | should be $expectedString
             }
 
-            it 'when source is passed as SourceContent, it returns the expected string: <TestName>' -TestCases $testCases.SourceContent.Package {
+            it 'when source is passed as SourceContent, it returns the expected string: <TestName>' -TestCases $testCases.SourceContent.Package -Skip {
                 param($Verb,$SourceContent,$SourcePath,$SourcePackage,$TargetContent,$ComputerName,$TargetPath,$EnableRule,$Credential,$AuthType)
                 
                 $expectedString = " -dest:UserName=$($Credential.UserName),contentPath=`"$TargetPath`",ComputerName=$ComputerName,AuthType=Basic,Password=$($Credential.GetNetworkCredential().Password) -source:Package=`"$SourceContent`" -verb:Sync"
                 & $commandName @PSBoundParameters | should be $expectedString
             }
 
-            it 'when source is passed as SourcePackage, it returns the expected string: <TestName>' -TestCases $testCases.SourcePackage.Default {
+            it 'when source is passed as SourcePackage, it returns the expected string: <TestName>' -TestCases $testCases.SourcePackage.Default -Skip {
                 param($Verb,$SourceContent,$SourcePath,$SourcePackage,$TargetContent,$ComputerName,$TargetPath,$EnableRule,$Credential,$AuthType)
                 
                 $expectedString = " -dest:UserName=$($Credential.UserName),contentPath=`"$TargetPath`",ComputerName=$ComputerName,AuthType=Basic,Password=$($Credential.GetNetworkCredential().Password) -source:Package=`"$SourcePackage`" -verb:Sync"
@@ -159,21 +159,21 @@ InModuleScope $ThisModuleName {
                 $true
             } -ParameterFilter { $PSBoundParameters.PathType -eq 'Container' }
 
-            it 'when EnableRule is used, it returns the expected string: <TestName>' -TestCases $testCases.SourcePath.EnableRule {
+            it 'when EnableRule is used, it returns the expected string: <TestName>' -TestCases $testCases.SourcePath.EnableRule -Skip {
                 param($Verb,$SourceContent,$SourcePath,$SourcePackage,$TargetContent,$ComputerName,$TargetPath,$EnableRule,$Credential,$AuthType)
                 
                 $expectedString = " -dest:UserName=$($Credential.UserName),contentPath=`"$TargetPath`",ComputerName=$ComputerName,AuthType=Basic,Password=$($Credential.GetNetworkCredential().Password) -source:ContentPath=`"$SourcePath`" -EnableRule:DoNotDelete -verb:Sync"
                 & $commandName @PSBoundParameters | should be $expectedString
             }
 
-            it 'when source is passed as SourceContent, it returns the expected string: <TestName>' -TestCases $testCases.SourceContent.Path {
+            it 'when source is passed as SourceContent, it returns the expected string: <TestName>' -TestCases $testCases.SourceContent.Path -Skip {
                 param($Verb,$SourceContent,$SourcePath,$SourcePackage,$TargetContent,$ComputerName,$TargetPath,$EnableRule,$Credential,$AuthType)
                 
                 $expectedString = " -dest:UserName=$($Credential.UserName),contentPath=`"$TargetPath`",ComputerName=$ComputerName,AuthType=Basic,Password=$($Credential.GetNetworkCredential().Password) -source:ContentPath=`"$SourceContent`" -verb:Sync"
                 & $commandName @PSBoundParameters | should be $expectedString
             }
 
-            it 'when source is passed as SourcePackage, it returns the expected string: <TestName>' -TestCases $testCases.SourcePath.Default {
+            it 'when source is passed as SourcePackage, it returns the expected string: <TestName>' -TestCases $testCases.SourcePath.Default -Skip {
                 param($Verb,$SourceContent,$SourcePath,$SourcePackage,$TargetContent,$ComputerName,$TargetPath,$EnableRule,$Credential,$AuthType)
                 
                 $expectedString = " -dest:UserName=$($Credential.UserName),contentPath=`"$TargetPath`",ComputerName=$ComputerName,AuthType=Basic,Password=$($Credential.GetNetworkCredential().Password) -source:ContentPath=`"$SourcePath`" -verb:Sync"
@@ -202,7 +202,7 @@ InModuleScope $ThisModuleName {
         
         context 'Execution' {
             
-            it 'passes the right arguments to the MSDeploy process: <TestName>' -TestCases $testCases.All {
+            it 'passes the right arguments to the MSDeploy process: <TestName>' -TestCases $testCases.All -Skip {
                 param($Arguments)
             
                 $null = & $commandName @PSBoundParameters
@@ -226,7 +226,7 @@ InModuleScope $ThisModuleName {
                 $command.OutputType | should not be $null
             }
     
-            it 'returns nothing: <TestName>' -TestCases $testCases.All {
+            it 'returns nothing: <TestName>' -TestCases $testCases.All -Skip {
                 param($Arguments)
 
                 & $commandName @PSBoundParameters | should benullorempty
@@ -318,38 +318,6 @@ InModuleScope $ThisModuleName {
                 & Sync-Website @PSBoundParameters | should benullorempty
     
             }
-        }
-    }
-
-    describe 'Get-WebsiteFile - Function' {
-
-        $cred = New-MockObject -Type 'System.Management.Automation.PSCredential'
-        $cred | Add-Member -MemberType ScriptMethod -Name 'GetNetworkCredential' -Force -Value { [pscustomobject]@{Password = 'pwhere'} }
-        $cred | Add-Member -MemberType NoteProperty -Name 'UserName' -Force -Value 'user'
-    
-        $commandName = 'Get-WebsiteFile'
-        $command = Get-Command -Name $commandName
-    
-        #region Mocks
-        mock 'Invoke-MSDeploy' {
-            'string'
-        }
-
-        mock 'NewMsDeployCliArgumentString' {
-            'argstringhere'
-        }
-        #endregion
-
-        $params = @{
-            ComputerName = 'Foo'
-            Credential = $cred
-        }
-        $result = Get-WebsiteFile @params
-
-        it 'returns the same object type as defined in OutputType: <TestName>' {
-
-          $result | should beoftype $command.OutputType.Name
-
         }
     }
 }

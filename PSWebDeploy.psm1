@@ -16,7 +16,7 @@ function NewMsDeployCliArgumentString
 	(
 		[Parameter(Mandatory)]
 		[ValidateNotNullOrEmpty()]
-		[ValidateSet('Sync','Dump','Delete','GetDependencies','GetParameters','GetSystemInfo')]
+		[ValidateSet('Sync')]
 		[string]$Verb,
 
 		[Parameter(Mandatory)]
@@ -25,23 +25,31 @@ function NewMsDeployCliArgumentString
 		[Alias('SourcePackage')]
 		[string]$SourceContent,
 
-		[Parameter()]
-		[ValidateNotNullOrEmpty()]
-		[Alias('TargetPath')]
-		[string]$TargetContent,
-
 		[Parameter(Mandatory)]
 		[ValidateNotNullOrEmpty()]
 		[string]$ComputerName,
 
 		[Parameter(Mandatory)]
 		[ValidateNotNullOrEmpty()]
-		[pscredential]$Credential,
+		[Alias('TargetPath')]
+		[string]$TargetContent,
+
+		[Parameter(Mandatory)]
+		[ValidateNotNullOrEmpty()]
+		$Credential,
 
 		[Parameter()]
 		[ValidateNotNullOrEmpty()]
 		[ValidateSet('DoNotDelete')]
 		[string[]]$EnableRule,
+
+		[Parameter()]
+		[ValidateNotNullOrEmpty()]
+		[int]$RetryAttempts,
+
+		[Parameter()]
+		[ValidateNotNullOrEmpty()]
+		[int]$RetryInterval,
 
 		[Parameter()]
 		[ValidateNotNullOrEmpty()]
@@ -59,33 +67,50 @@ function NewMsDeployCliArgumentString
 		verb = $Verb
 	}
 
+	if ($PSBoundParameters.ContainsKey('RetryInterval'))
+	{
+		$deployArgs.retryInterval = $RetryInterval
+	}
+
+	if ($PSBoundParameters.ContainsKey('RetryAttempts'))
+	{
+		$deployArgs.RetryAttempts = $RetryAttempts	
+	}
+
 	if ($PSBoundParameters.ContainsKey('EnableRule'))
 	{
 		$deployArgs.EnableRule = $EnableRule -join ','
 	}
+
+	## If this is a ZIP file, it needs to be Package otherwise assuming it's a file path or a web service path
 	if (Test-Path -Path $SourceContent -PathType Leaf) {
 		$sourceProvider = 'Package'
-	} elseif (Test-Path -Path $SourceContent -PathType Container) {
-		$sourceProvider = 'ContentPath'
 	} else {
-		throw 'Could not determine the source provider from Source.'
+		$sourceProvider = 'ContentPath'
 	}
+	$targetProvider = 'ContentPath'
 
-	if ($TargetPath) {
-		$targetProvider = 'ContentPath'
-	}
+	if (Test-Path -Path $SourceContent) {
 
-	if ($PSBoundParameters.ContainsKey('TargetContent') -and $PSBoundParameters.ContainsKey('SourceContent')) {
-		$deployArgs.dest = ($connHt + @{
-			$targetProvider = '"{0}"' -f $TargetContent
-		})
+		## No authentication needed if source is a folder/file path
 		$deployArgs.source = @{
 			$sourceProvider = '"{0}"' -f $SourceContent
 		}
-	} elseif ($PSBoundParameters.ContainsKey('SourceContent')) {
-		$deployArgs.source = ($connHt + @{
-			$sourceProvider = '"{0}"' -f $SourceContent
+
+		## Assuming that destination is a web service if source is not. Authentication needed.
+		$deployArgs.dest = ($connHt + @{
+			$targetProvider = '"{0}"' -f $TargetContent
 		})
+
+	} else {
+		## Assuming this is a web service. Authenticate here
+		$deployArgs.source = $connHt + @{
+			$sourceProvider = '"{0}"' -f $SourceContent
+		}
+		## Assuming that destination is a file/folder path. No authentication needed.
+		$deployArgs.dest = @{
+			$targetProvider = '"{0}"' -f $TargetContent
+		}
 	}
 
 	$argString = '' 
@@ -115,8 +140,32 @@ function Invoke-MSDeploy
 		[string]$Arguments
 	)
 
-	Start-Process -FilePath $Defaults.MSDeployExePath -ArgumentList $Arguments -Wait -NoNewWindow
-	
+	$stdOutTempFile = New-TemporaryFile
+	$stdErrTempFile = New-TemporaryFile
+
+	$startProcessParams = @{
+    	FilePath                = $Defaults.MSDeployExePath
+		ArgumentList            = $Arguments
+		RedirectStandardError    = $stdErrTempFile.FullName
+		RedirectStandardOutput    = $stdOutTempFile.FullName
+		Wait                    = $true;
+		PassThru                = $true;
+		NoNewWindow                = $true;
+	}
+
+	$cmd = Start-Process @startProcessParams
+	$cmdOutput = Get-Content -Path $stdOutTempFile.FullName -Raw
+	$cmdError = Get-Content -Path $stdErrTempFile.FullName -Raw
+	if ([string]::IsNullOrEmpty($cmdOutput) -eq $false)
+	{
+		Write-Verbose -Message $cmdOutput
+	}
+	if ($cmd.ExitCode -ne 0)
+	{
+		throw $cmdError
+	}
+	Remove-Item -Path $stdOutTempFile.FullName,$stdErrTempFile.FullName -Force
+
 }
 
 #region function Sync-Website
@@ -146,6 +195,10 @@ function Sync-Website {
 			 parameter if you'd simply like to copy the contents from SourcePath to TargetPath without removing TargetPath
 			 files/folders.
 
+		.PARAMETER RetryInterval
+			 A optional int parameter representing the interval (in seconds) in which MSDeploy will attempt to retry the action. By default,
+			 this is 10 seconds. This parameter is expressed in milliseconds.
+
 		.PARAMETER Credential
 			Specifies a user account that has permission to perform this action. The default is the current user.
 			
@@ -156,13 +209,13 @@ function Sync-Website {
 	[CmdletBinding()]
 	param
 	(
-		[Parameter(Mandatory,ParameterSetName = 'ByFolder')]
+		[Parameter(Mandatory,ParameterSetName = 'BySourcePath')]
 		[ValidateNotNullOrEmpty()]
 		[string]$SourcePath,
 
-		[Parameter(Mandatory,ParameterSetName = 'ByPackage')]
+		[Parameter(Mandatory,ParameterSetName = 'BySourcePackage')]
 		[ValidateNotNullOrEmpty()]
-		[ValidateScript({ $_ -match '\.zip$' })]
+		[ValidateScript({ Test-FileExtension -Path $_ -Extension 'zip' })]
 		[string]$SourcePackage,
 
 		[Parameter(Mandatory)]
@@ -179,7 +232,15 @@ function Sync-Website {
 
 		[Parameter()]
 		[ValidateNotNullOrEmpty()]
-		[pscredential]$Credential
+		[int]$RetryInterval = 10,
+
+		[Parameter()]
+		[ValidateNotNullOrEmpty()]
+		[int]$Timeout = 60,
+
+		[Parameter()]
+		[ValidateNotNullOrEmpty()]
+		$Credential
 	)
 	begin {
 		$ErrorActionPreference = 'Stop'
@@ -189,11 +250,13 @@ function Sync-Website {
 		{
 			$cliArgStringParams = @{
 				Verb = 'sync'
-				TargetContent = ($TargetPath -replace '/','\')
+				TargetPath = ($TargetPath -replace '/','\')
 				ComputerName = $ComputerName
 				Credential = $Credential
+				RetryInterval = ($RetryInterval * 10)
 			}
-			if ($PSCmdlet.ParameterSetName -eq 'ByFolder') {
+
+			if ($PSCmdlet.ParameterSetName -eq 'BySourcePath') {
 				$cliArgStringParams.SourcePath = $SourcePath
 			} else {
 				$cliArgStringParams.SourcePackage = $SourcePackage
@@ -204,57 +267,28 @@ function Sync-Website {
 
 			$argString = NewMsDeployCliArgumentString @cliArgStringParams
 			Write-Verbose -Message "Using the MSDeploy CLI string: [$($argString)]"
-			Invoke-MSDeploy -Arguments $argString
+			try {
+				Invoke-MSDeploy -Arguments $argString
+			} catch {
+				$timer = [Diagnostics.Stopwatch]::StartNew()
+				while ($timer.Elapsed.TotalSeconds -lt $Timeout) {
+					try {
+						Invoke-MSDeploy -Arguments $argString
+					} catch {
+						Write-Verbose -Message "MSdeploy failed. Retrying after [$($RetryInterval)] seconds..."
+						Start-Sleep -Seconds $RetryInterval
+					}
+				}
+				$timer.Stop()
+				if ($timer.Elapsed.TotalSeconds -gt $Timeout) {
+					throw 'Msdeploy timed out attempting to sync website.'
+				}
+			}
 		}
 		catch
 		{
-			Write-Error $_.Exception.Message
+			$PSCmdlet.ThrowTerminatingError($_)
 		}
 	}
 }
 #endregion function Sync-Website
-
-#region function Get-WebSiteFile
-function Get-WebSiteFile
-{
-	[OutputType('string')]
-	[CmdletBinding()]
-	param
-	(
-		[Parameter(Mandatory)]
-		[ValidateNotNullOrEmpty()]
-		[string]$ComputerName,
-
-		[Parameter(Mandatory)]
-		[ValidateNotNullOrEmpty()]
-		[pscredential]$Credential,
-
-		[Parameter()]
-		[ValidateNotNullOrEmpty()]
-		[string]$SourcePath = 'wwwroot'
-	)
-	begin {
-		$ErrorActionPreference = 'Stop'
-	}
-	process {
-		try
-		{
-			$cliArgStringParams = @{
-				Verb = 'dump'
-				ComputerName = $ComputerName
-				Credential = $Credential
-				SourcePath = $SourcePath
-			}
-
-			$argString = NewMsDeployCliArgumentString @cliArgStringParams
-			Write-Verbose -Message "Using the MSDeploy CLI string: [$($argString)]"
-			Invoke-MSDeploy -Arguments $argString
-	
-		}
-		catch
-		{
-			Write-Error -Message $_.Exception.Message
-		}
-	}
-}
-#endregion function Get-WebSite
