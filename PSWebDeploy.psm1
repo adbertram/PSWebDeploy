@@ -215,7 +215,6 @@ function Sync-Website {
 
 		[Parameter(Mandatory,ParameterSetName = 'BySourcePackage')]
 		[ValidateNotNullOrEmpty()]
-		[ValidateScript({ Test-FileExtension -Path $_ -Extension 'zip' })]
 		[string]$SourcePackage,
 
 		[Parameter(Mandatory)]
